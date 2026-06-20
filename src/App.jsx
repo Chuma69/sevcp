@@ -1,11 +1,34 @@
-import { useState, useMemo } from 'react';
-import { STATES, STARTUPS } from './data/startups';
-import StartupCard from './components/StartupCard';
-import DetailPanel from './components/DetailPanel';
-import Mosaic from './components/Mosaic';
+import { useState, useMemo, useEffect } from 'react';
+import { STATES, STARTUPS, INTRO_EMAIL } from './data/startups';
 
-const TRACKS = ['All', 'Accelerator', 'Incubator'];
-const STATE_NAMES = Object.keys(STATES);
+const STATE_ORDER = Object.keys(STATES);
+const STATE_COUNTS = STATE_ORDER.reduce((acc, s) => {
+  acc[s] = STARTUPS.filter(d => d.state === s).length;
+  return acc;
+}, {});
+const MOSAIC_TILES = [...STARTUPS].sort(
+  (a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state) || a.name.localeCompare(b.name)
+);
+
+const LINK_ORDER = ['website', 'x', 'linkedin', 'instagram', 'facebook'];
+const LINK_LABEL = { website: 'Website', x: 'X', linkedin: 'LinkedIn', instagram: 'Instagram', facebook: 'Facebook' };
+
+function linkSVG(t) {
+  switch (t) {
+    case 'website': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>;
+    case 'x': return <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.66l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>;
+    case 'linkedin': return <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5C4.98 4.88 3.87 6 2.5 6S0 4.88 0 3.5 1.12 1 2.5 1 4.98 2.12 4.98 3.5zM.25 8h4.5v16H.25V8zm7.5 0h4.31v2.19h.06c.6-1.14 2.07-2.34 4.26-2.34 4.56 0 5.4 3 5.4 6.9V24h-4.5v-7.35c0-1.75-.03-4-2.44-4-2.44 0-2.81 1.91-2.81 3.88V24h-4.5V8z"/></svg>;
+    case 'instagram': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.4" cy="6.6" r="1" fill="currentColor" stroke="none"/></svg>;
+    case 'facebook': return <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 10-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.78-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0022 12z"/></svg>;
+    default: return null;
+  }
+}
+
+function introHref(d) {
+  const subject = `Intro request — ${d.name} (SEVCP Portfolio)`;
+  const body = `Hello SEVCP team,\n\nI'd like to request an introduction to ${d.name}, a ${d.track.toLowerCase()} venture (${d.sector}) based in ${d.state} State, from the SEVCP inaugural portfolio.\n\nA little about me and why I'm reaching out:\n\nThank you,`;
+  return `mailto:${INTRO_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
 
 export default function App() {
   const [query, setQuery] = useState('');
@@ -26,171 +49,302 @@ export default function App() {
     setQuery(''); setTrack('All'); setActiveStates(new Set()); setSort('az');
   }
 
+  const hasFilters = query || track !== 'All' || activeStates.size > 0;
+
   const filtered = useMemo(() => {
-    let list = STARTUPS;
-    if (track !== 'All') list = list.filter(d => d.track === track);
-    if (activeStates.size > 0) list = list.filter(d => activeStates.has(d.state));
-    if (query) {
-      const q = query.toLowerCase();
-      list = list.filter(d =>
-        d.name.toLowerCase().includes(q) ||
-        d.sector.toLowerCase().includes(q) ||
-        d.summary.toLowerCase().includes(q) ||
-        d.state.toLowerCase().includes(q)
-      );
-    }
+    let list = STARTUPS.filter(d => {
+      if (track !== 'All' && d.track !== track) return false;
+      if (activeStates.size && !activeStates.has(d.state)) return false;
+      if (query) {
+        const hay = (d.name + ' ' + d.sector + ' ' + d.state + ' ' + d.summary + ' ' + (d.description || '')).toLowerCase();
+        if (!hay.includes(query.toLowerCase())) return false;
+      }
+      return true;
+    });
     if (sort === 'az') list = [...list].sort((a, b) => a.name.localeCompare(b.name));
-    else if (sort === 'za') list = [...list].sort((a, b) => b.name.localeCompare(a.name));
-    else if (sort === 'state') list = [...list].sort((a, b) => a.state.localeCompare(b.state));
+    else if (sort === 'state') list = [...list].sort((a, b) => a.state.localeCompare(b.state) || a.name.localeCompare(b.name));
+    else if (sort === 'track') list = [...list].sort((a, b) => a.track.localeCompare(b.track) || a.name.localeCompare(b.name));
     return list;
   }, [query, track, activeStates, sort]);
 
-  const hasFilters = query || track !== 'All' || activeStates.size > 0 || sort !== 'az';
+  // lock body scroll when panel open
+  useEffect(() => {
+    document.body.classList.toggle('locked', !!selected);
+    return () => document.body.classList.remove('locked');
+  }, [selected]);
+
+  // close on Escape
+  useEffect(() => {
+    const handler = e => { if (e.key === 'Escape') setSelected(null); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   return (
-    <div style={{ minHeight: '100vh' }}>
-      {/* Hero */}
-      <header style={{ position: 'relative', overflow: 'hidden', padding: '64px 24px 40px', textAlign: 'center', background: 'linear-gradient(160deg, #143C2B 0%, #0d2418 100%)' }}>
-        <div style={{ position: 'absolute', inset: 0, opacity: 0.2, backgroundImage: 'radial-gradient(circle at 20% 80%, #2BA84A 0%, transparent 50%), radial-gradient(circle at 80% 20%, #E85D3D 0%, transparent 50%)' }} />
-        <div style={{ position: 'relative', maxWidth: 700, margin: '0 auto' }}>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 12 }}>
-            South-East Venture Capital Programme
-          </p>
-          <h1 style={{ fontSize: 'clamp(32px, 5vw, 52px)', fontWeight: 800, color: '#fff', lineHeight: 1.15, marginBottom: 16 }}>
-            SEVCP Cohort One<br />
-            <span style={{ color: '#6ee7a0' }}>Portfolio</span>
-          </h1>
-          <p style={{ fontSize: 'clamp(14px, 2vw, 17px)', color: 'rgba(255,255,255,0.55)', marginBottom: 32, maxWidth: 480, margin: '0 auto 32px' }}>
-            {STARTUPS.filter(d => d.track === 'Accelerator').length} accelerator ventures &amp;{' '}
-            {STARTUPS.filter(d => d.track === 'Incubator').length} incubator ventures across five South-East states.
-          </p>
+    <>
+      {/* top colour stripe */}
+      <div className="stripe"><i/><i/><i/><i/><i/></div>
 
-          {/* Stats */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, marginBottom: 32, flexWrap: 'wrap' }}>
-            {[
-              { label: 'Ventures', value: STARTUPS.length },
-              { label: 'Accelerator', value: STARTUPS.filter(d => d.track === 'Accelerator').length },
-              { label: 'Incubator', value: STARTUPS.filter(d => d.track === 'Incubator').length },
-              { label: 'States', value: STATE_NAMES.length },
-            ].map(s => (
-              <div key={s.label} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 36, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{s.value}</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-
-          <Mosaic onSelect={setSelected} />
-
-          {/* State legend */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 12, marginTop: 8 }}>
-            {STATE_NAMES.map(name => (
-              <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, background: STATES[name].color, display: 'inline-block' }} />
-                {name}
-              </div>
-            ))}
+      {/* nav */}
+      <header className="nav">
+        <div className="wrap nav-in">
+          <div className="brand">
+            <img src="/sedc-logo.png" alt="SEDC" />
+            <div className="div" />
+            <div className="prog">South East Venture<br /><b>Capital Programme</b></div>
           </div>
         </div>
       </header>
 
-      {/* Sticky filters */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 40, padding: '10px 16px', background: 'rgba(13,36,24,0.92)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {/* Search + sort */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <div style={{ position: 'relative', flex: 1 }}>
-              <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: 'rgba(255,255,255,0.3)' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-              </svg>
+      {/* hero */}
+      <section className="hero">
+        <div className="wrap">
+          <div className="hero-grid">
+            <div className="hero-copy">
+              <div className="eyebrow">SEVCP PORTFOLIO • 2026</div>
+              <h1 className="hero-title">Ventures backed to drive growth across <em>the South East.</em></h1>
+              <p className="hero-sub">Selected through a competitive, multi-stage evaluation process, these ventures comprise the inaugural portfolio of the South East Venture Capital Programme, reflecting the Commission's commitment to entrepreneurship, innovation, job creation, and long-term economic growth across the region.</p>
+              <div className="statline">
+                <div className="s"><div className="n">{STARTUPS.length}</div><div className="l">PORTFOLIO{'\n'}VENTURES</div></div>
+                <div className="s"><div className="n">5</div><div className="l">States{'\n'}Represented</div></div>
+                <div className="s"><div className="n">{STARTUPS.filter(d => d.track === 'Accelerator').length}</div><div className="l">GROWTH-STAGE{'\n'}VENTURES</div></div>
+                <div className="s"><div className="n">{STARTUPS.filter(d => d.track === 'Incubator').length}</div><div className="l">EARLY-STAGE{'\n'}VENTURES</div></div>
+              </div>
+            </div>
+            <div className="mosaic-wrap">
+              <div className="mosaic">
+                {MOSAIC_TILES.map(d => (
+                  <button
+                    key={d.name}
+                    className="tile"
+                    style={{ '--tc': STATES[d.state].color }}
+                    data-name={d.name}
+                    aria-label={`${d.name} — ${d.state}`}
+                    onClick={() => setSelected(d)}
+                  />
+                ))}
+              </div>
+              <div className="mosaic-cap">
+                {STATE_ORDER.map(name => (
+                  <span key={name} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <span className="d" style={{ background: STATES[name].color }} />
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* controls */}
+      <div className="controls">
+        <div className="wrap">
+          <div className="controls-in">
+            <label className="search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
               <input
+                id="q"
+                type="text"
+                placeholder="Search ventures, sectors, what they build…"
+                autoComplete="off"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Search ventures, sectors…"
-                style={{ width: '100%', paddingLeft: 32, paddingRight: 12, paddingTop: 7, paddingBottom: 7, borderRadius: 10, fontSize: 13, color: '#fff', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', outline: 'none' }}
               />
-            </div>
-            <select
-              value={sort}
-              onChange={e => setSort(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 10, fontSize: 13, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', outline: 'none', cursor: 'pointer' }}
-            >
-              <option value="az">A–Z</option>
-              <option value="za">Z–A</option>
-              <option value="state">By State</option>
-            </select>
-          </div>
-
-          {/* Track + state pills */}
-          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-            {/* Track segmented control */}
-            <div style={{ display: 'flex', borderRadius: 20, padding: 2, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              {TRACKS.map(t => (
+            </label>
+            <div className="seg">
+              {['All', 'Accelerator', 'Incubator'].map(t => (
                 <button
                   key={t}
+                  data-track={t}
+                  className={track === t ? 'on' : ''}
                   onClick={() => setTrack(t)}
-                  style={{ padding: '4px 12px', borderRadius: 18, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: 'none', background: track === t ? 'rgba(255,255,255,0.12)' : 'transparent', color: track === t ? '#fff' : 'rgba(255,255,255,0.45)' }}
                 >
-                  {t}
+                  {t === 'All' ? 'All Tracks' : t}
                 </button>
               ))}
             </div>
-
-            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)', margin: '0 2px' }} />
-
-            {/* State pills */}
-            {STATE_NAMES.map(name => {
+            <div className="selwrap">
+              <select className="sortsel" value={sort} onChange={e => setSort(e.target.value)}>
+                <option value="az">Sort: A–Z</option>
+                <option value="state">Sort: By State</option>
+                <option value="track">Sort: By Track</option>
+              </select>
+            </div>
+          </div>
+          <div className="statefilter">
+            <span className="sf-label">States</span>
+            {[...STATE_ORDER].sort((a, b) => STATE_COUNTS[b] - STATE_COUNTS[a]).map(name => {
               const on = activeStates.has(name);
               return (
                 <button
                   key={name}
+                  className={`pill${on ? ' on' : ''}`}
+                  style={on ? { background: STATES[name].color } : {}}
                   onClick={() => toggleState(name)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: `1px solid ${on ? STATES[name].color : 'rgba(255,255,255,0.08)'}`, background: on ? STATES[name].color : 'rgba(255,255,255,0.06)', color: on ? '#fff' : 'rgba(255,255,255,0.55)' }}
                 >
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: on ? '#fff' : STATES[name].color, display: 'inline-block' }} />
+                  <span className="dot" style={{ background: on ? '#fff' : STATES[name].color }} />
                   {name}
+                  <span className="ct">{STATE_COUNTS[name]}</span>
                 </button>
               );
             })}
-
-            {hasFilters && (
-              <button
-                onClick={clearAll}
-                style={{ marginLeft: 'auto', padding: '4px 10px', borderRadius: 20, fontSize: 12, cursor: 'pointer', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }}
-              >
-                Clear all
-              </button>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Grid */}
-      <main style={{ padding: '32px 16px', maxWidth: 1100, margin: '0 auto' }}>
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', marginBottom: 20 }}>
-          {filtered.length} venture{filtered.length !== 1 ? 's' : ''}
-        </p>
+      {/* grid */}
+      <div className="wrap">
+        <div className="resbar">
+          <div className="count">Showing <b>{filtered.length}</b> of {STARTUPS.length} ventures</div>
+          <button className={`clearbtn${hasFilters ? ' show' : ''}`} onClick={clearAll}>Clear filters ✕</button>
+        </div>
+        <div className="grid">
+          {filtered.length === 0 ? (
+            <div className="empty">No ventures match your filters.<br />Try clearing them.</div>
+          ) : filtered.map(d => {
+            const c = STATES[d.state].color;
+            const trackClass = d.track === 'Accelerator' ? 'acc' : 'inc';
+            return (
+              <article
+                key={d.name}
+                className="card"
+                style={{ '--c': c }}
+                onClick={() => setSelected(d)}
+              >
+                <div className="card-top">
+                  <span className="state-tag"><span className="dot" />{d.state}</span>
+                  <span className={`track-badge ${trackClass}`}>{d.track}</span>
+                </div>
+                <h3>{d.name}</h3>
+                <div className="sector">{d.sector}</div>
+                <p className="summ">{d.summary}</p>
+                <div className="card-foot">
+                  <span className="card-soc">
+                    {LINK_ORDER.map(t => {
+                      const url = d.links?.[t];
+                      return (
+                        <a
+                          key={t}
+                          className="card-soc-a"
+                          href={url || '#'}
+                          target={url ? '_blank' : undefined}
+                          rel={url ? 'noopener noreferrer' : undefined}
+                          aria-label={LINK_LABEL[t]}
+                          title={LINK_LABEL[t]}
+                          onClick={e => { if (!url) e.preventDefault(); e.stopPropagation(); }}
+                        >
+                          {linkSVG(t)}
+                        </a>
+                      );
+                    })}
+                  </span>
+                  <span className="arrow">→</span>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </div>
 
-        {filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '80px 0' }}>
-            <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.3)', marginBottom: 12 }}>No ventures match your filters</p>
-            <button onClick={clearAll} style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Clear filters</button>
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-            {filtered.map(d => (
-              <StartupCard key={d.name} startup={d} onClick={setSelected} />
+      {/* footer */}
+      <footer>
+        <div className="wrap">
+          <div className="f-stripe">
+            {['#6CC5D0','#E85D3D','#C3E84C','#6CC5D0','#2BA84A'].map((c, i) => (
+              <span key={i} style={{ background: c }} />
             ))}
           </div>
-        )}
-      </main>
-
-      {/* Footer */}
-      <footer style={{ textAlign: 'center', padding: '40px 24px', borderTop: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.18)', fontSize: 12 }}>
-        SEVCP Cohort One · South-East Venture Capital Programme
+          <div className="f-name">South East Venture<br />Capital <span className="lt">Programme</span></div>
+          <div className="f-tag">An independent venture programme for South East Nigeria</div>
+          <div className="f-support">
+            <span className="sup-label">Supported by</span>
+            <div className="sup-logos">
+              <img src="/sedc-logo.png" alt="South East Development Commission" />
+              <span className="sup-div" />
+              <span className="sup-wm">Ventures Platform</span>
+              <span className="sup-div" />
+              <span className="sup-wm">Cascador</span>
+            </div>
+          </div>
+          <div className="f-base">
+            <span>© 2026 South East Venture Capital Programme</span>
+            <span>Inaugural Portfolio</span>
+          </div>
+        </div>
       </footer>
 
-      {selected && <DetailPanel startup={selected} onClose={() => setSelected(null)} />}
-    </div>
+      {/* detail overlay */}
+      <div className={`overlay${selected ? ' open' : ''}`} onClick={e => { if (e.target.classList.contains('overlay')) setSelected(null); }}>
+        <div className="panel">
+          {selected && (() => {
+            const d = selected;
+            const c = STATES[d.state].color;
+            return (
+              <>
+                <div className="panel-band" style={{ background: c }}>
+                  <button className="closeb" aria-label="Close" onClick={() => setSelected(null)}>✕</button>
+                  <div className="p-track">{d.track} Track</div>
+                  <h2>{d.name}</h2>
+                  <div className="p-sector">{d.sector}</div>
+                </div>
+                <div className="panel-body">
+                  <div className="p-meta">
+                    <div className="mi">
+                      <span className="mk">State</span>
+                      <span className="mv"><span className="dot" style={{ background: c }} />{d.state}</span>
+                    </div>
+                    <div className="mi">
+                      <span className="mk">Program</span>
+                      <span className="mv">{d.track}</span>
+                    </div>
+                  </div>
+                  {d.traction && (
+                    <div className="p-traction">
+                      <div className="k">Traction</div>
+                      <div className="v">{d.traction}</div>
+                    </div>
+                  )}
+                  <p className="p-desc">{d.description}</p>
+                  {d.updates?.length > 0 && (
+                    <div className="p-updates">
+                      <h4>Milestones &amp; Updates</h4>
+                      <ul>
+                        {d.updates.map((u, i) => (
+                          <li key={i}><span className="ud" /><span>{u}</span></li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="p-actions">
+                    <a className="p-btn primary" href={introHref(d)}>Request an intro →</a>
+                  </div>
+                  <div className="p-links">
+                    <span className="p-links-lbl">Connect</span>
+                    {LINK_ORDER.map(t => {
+                      const url = d.links?.[t];
+                      return (
+                        <a
+                          key={t}
+                          className="p-soc"
+                          href={url || '#'}
+                          target={url ? '_blank' : undefined}
+                          rel={url ? 'noopener noreferrer' : undefined}
+                          aria-label={LINK_LABEL[t]}
+                          title={LINK_LABEL[t]}
+                          onClick={e => { if (!url) e.preventDefault(); }}
+                        >
+                          {linkSVG(t)}
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      </div>
+    </>
   );
 }
