@@ -62,11 +62,11 @@ h1.hero-title { font-size: clamp(36px, 4.3vw, 60px); font-weight: 800; line-heig
 h1.hero-title em { font-style: normal; color: var(--bright); }
 .hero-sub { font-size: clamp(17px, 1.3vw, 20px); color: var(--muted); font-weight: 500; max-width: 54ch; margin-top: 22px; line-height: 1.5; }
 
-.statline { display: flex; flex-wrap: wrap; gap: 0; margin-top: 38px; }
-.statline .s { padding-right: 30px; margin-right: 30px; border-right: 1px solid var(--line2); }
+.statline { display: flex; flex-wrap: nowrap; gap: 0; margin-top: 38px; }
+.statline .s { padding-right: clamp(14px, 2vw, 30px); margin-right: clamp(14px, 2vw, 30px); border-right: 1px solid var(--line2); flex-shrink: 0; }
 .statline .s:last-child { border-right: none; margin-right: 0; padding-right: 0; }
-.statline .n { font-size: 40px; font-weight: 800; letter-spacing: -.025em; line-height: 1; }
-.statline .l { font-family: 'Space Mono', monospace; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-top: 9px; line-height: 1.35; }
+.statline .n { font-size: clamp(28px, 3.5vw, 40px); font-weight: 800; letter-spacing: -.025em; line-height: 1; }
+.statline .l { font-family: 'Space Mono', monospace; font-size: clamp(9px, 1vw, 10.5px); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-top: 9px; line-height: 1.35; }
 .statline .s:nth-child(1) .n { color: var(--green); }
 .statline .s:nth-child(2) .n { color: var(--coral); }
 .statline .s:nth-child(3) .n { color: var(--teal); }

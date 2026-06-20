@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { STATES, STARTUPS, INTRO_EMAIL } from './data/startups';
+import sedcLogo from './assets/sedc-logo.png';
 
 const STATE_ORDER = Object.keys(STATES);
 const STATE_COUNTS = STATE_ORDER.reduce((acc, s) => {
@@ -89,7 +90,7 @@ export default function App() {
       <header className="nav">
         <div className="wrap nav-in">
           <div className="brand">
-            <img src="/sedc-logo.png" alt="SEDC" />
+            <img src={sedcLogo} alt="SEDC" />
             <div className="div" />
             <div className="prog">South East Venture<br /><b>Capital Programme</b></div>
           </div>
@@ -260,7 +261,7 @@ export default function App() {
           <div className="f-support">
             <span className="sup-label">Supported by</span>
             <div className="sup-logos">
-              <img src="/sedc-logo.png" alt="South East Development Commission" />
+              <img src={sedcLogo} alt="South East Development Commission" />
               <span className="sup-div" />
               <span className="sup-wm">Ventures Platform</span>
               <span className="sup-div" />
